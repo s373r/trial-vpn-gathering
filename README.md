@@ -1,5 +1,7 @@
 # Trial-vpn-gathering
 
+Automatically getting a trial vpn account
+
 ## :lock: Prepare
 
 In this repo directory:
@@ -9,7 +11,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## :unlock: Gathering:
+## :unlock: Gathering
 
 ```bash
 python get-vpn.py
@@ -17,11 +19,16 @@ python get-vpn.py
 
 If all test are pass, `credentials.txt` will be created :crystal_ball:
 
-Type `cat credentials.txt`to see them 
+Type `cat credentials.txt` to see them
 
+## :closed_lock_with_key: Setup
 
-## :key: Selenium troubleshooting:
+[How can I complete a manual OpenVPN setup for Linux (Ubuntu)?](https://www.safervpn.com/support/articles/214083725-How-can-I-complete-a-manual-OpenVPN-setup-for-Linux-Ubuntu-)
+
+---
+
+## :key: Selenium troubleshooting
 
 The WebDriver is really capricious.
 
-So, just try again if you have the "TimeoutException" :ok_hand:
+So, just try again if you have the `TimeoutException` :ok_hand:
