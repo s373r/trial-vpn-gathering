@@ -4,7 +4,7 @@ Automatically getting a trial vpn account
 
 ## :lock: Prepare
 
-In this repo directory:
+After `git clone` in this repo directory:
 ```bash
 virtualenv venv
 source venv/bin/activate
@@ -17,7 +17,7 @@ pip install -r requirements.txt
 python get-vpn.py
 ```
 
-If all test are pass, `credentials.txt` will be created :crystal_ball:
+If all test are passed, `credentials.txt` will be created :crystal_ball:
 
 Type `cat credentials.txt` to see them
 
