@@ -20,7 +20,10 @@ $ python get-vpn.py
 
 If all test are passed, `credentials.txt` will be created :crystal_ball:
 
-Type `cat credentials.txt` to see them
+Type to view fresh credentials:
+```
+$ cat credentials.txt
+```
 
 ## :closed_lock_with_key: Setup
 
