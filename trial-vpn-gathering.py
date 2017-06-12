@@ -6,6 +6,7 @@ import os
 import platform
 import subprocess
 import time
+from datetime import datetime
 
 import unittest
 import requests
@@ -22,7 +23,6 @@ from selenium.common.exceptions import TimeoutException
 
 
 class WaitingDriver(webdriver.Chrome):
-
     def __init__(self, *args, **kwargs):
         super(WaitingDriver, self).__init__(*args, **kwargs)
 
@@ -52,7 +52,6 @@ class WaitingDriver(webdriver.Chrome):
 
 
 class DownloadLatestChromeDriver(unittest.TestCase):
-
     def test(self):
         if 'VIRTUAL_ENV' not in os.environ:
             self.fail('activate virtualenv first')
@@ -93,14 +92,20 @@ class DownloadLatestChromeDriver(unittest.TestCase):
 
 
 class SaferVPNGathering(unittest.TestCase):
-
     def __init__(self, *args, **kwargs):
         super(SaferVPNGathering, self).__init__(*args, **kwargs)
 
         self._generated_email = None
         self._password = 'qwerty123456'
+        self._credentials_filename = 'credentials.txt'
 
     def setUp(self):
+        if os.path.exists(self._credentials_filename):
+            credentials_creation_mtime = os.path.getmtime(self._credentials_filename)
+            time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
+            if time_from_the_creation.days == 0:
+                self.skipTest('actual trial credentials')
+
         self.driver_dropmailme = WaitingDriver()
         self.driver_safervpn = WaitingDriver()
 
