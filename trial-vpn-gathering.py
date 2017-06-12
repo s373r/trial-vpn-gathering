@@ -54,6 +54,9 @@ class WaitingDriver(webdriver.Chrome):
 class DownloadLatestChromeDriver(unittest.TestCase):
 
     def test(self):
+        if 'VIRTUAL_ENV' not in os.environ:
+            self.fail('activate virtualenv first')
+
         path_to_bin = os.environ['VIRTUAL_ENV'] + '/bin'
         path_to_driver = path_to_bin + '/chromedriver'
         if os.path.exists(path_to_driver):
