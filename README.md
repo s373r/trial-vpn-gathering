@@ -15,7 +15,7 @@ $ pip install -r requirements.txt
 ## :unlock: Gathering
 
 ```
-$ python get-vpn.py
+$ python trial-vpn-gathering.py
 ```
 
 If all test are passed, `credentials.txt` will be created :crystal_ball:
