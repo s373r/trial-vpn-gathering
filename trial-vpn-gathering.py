@@ -22,6 +22,26 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
 
+class Credentials:
+    def __init__(self, filename):
+        self._filename = filename
+
+    def exists(self):
+        return os.path.exists(self._filename)
+
+    def is_actual_credentials(self):
+        credentials_creation_mtime = os.path.getmtime(self._filename)
+        time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
+        return time_from_the_creation.days == 0
+
+    def write_credentials_to_file(self, generated_email, password):
+        with open(self._filename, 'w') as file:
+            for line in [generated_email, password]:
+                file.writelines([line, '\n'])
+
+credentials = Credentials('credentials.txt')
+
+
 class WaitingDriver(webdriver.Chrome):
     def __init__(self, *args, **kwargs):
         super(WaitingDriver, self).__init__(*args, **kwargs)
@@ -97,14 +117,10 @@ class SaferVPNGathering(unittest.TestCase):
 
         self._generated_email = None
         self._password = 'qwerty123456'
-        self._credentials_filename = 'credentials.txt'
 
     def setUp(self):
-        if os.path.exists(self._credentials_filename):
-            credentials_creation_mtime = os.path.getmtime(self._credentials_filename)
-            time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
-            if time_from_the_creation.days == 0:
-                self.skipTest('actual trial credentials')
+        if credentials.exists() and credentials.is_actual_credentials():
+            self.skipTest('actual trial credentials')
 
         self.driver_dropmailme = WaitingDriver()
         self.driver_safervpn = WaitingDriver()
@@ -156,9 +172,7 @@ class SaferVPNGathering(unittest.TestCase):
         confirm_message_element = driver_dropmailme.wait_element_by_xpath('/html/body/div[1]/div[2]/strong')
         self.assertEqual(confirm_message_element.text, 'Your free trial account has been successfuly activated')
 
-        with open('credentials.txt', 'w') as file:
-            for line in [self._generated_email, self._password]:
-                file.writelines([line, '\n'])
+        credentials.write_credentials_to_file(self._generated_email, self._password)
 
     def tearDown(self):
         for driver in [self.driver_dropmailme, self.driver_safervpn]:
