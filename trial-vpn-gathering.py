@@ -11,7 +11,7 @@ from datetime import datetime
 import unittest
 import requests
 import wget
-
+import urllib
 from zipfile import ZipFile
 
 from selenium import webdriver
@@ -25,6 +25,8 @@ from selenium.common.exceptions import TimeoutException
 class Credentials:
     def __init__(self, filename):
         self._filename = filename
+        self._email = ''
+        self._password = ''
 
     def exists(self):
         return os.path.exists(self._filename)
@@ -34,11 +36,15 @@ class Credentials:
         time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
         return time_from_the_creation.days == 0
 
-    def write_credentials_to_file(self, generated_email, password):
+    def write_credentials_to_file(self, email, password):
+        self._email = email
+        self._password = password
+
         with open(self._filename, 'w') as file:
-            for line in [generated_email, password]:
+            for line in [self._email, self._password]:
                 file.writelines([line, '\n'])
 
+# todo save a credentials.txt file to other directory
 credentials = Credentials('credentials.txt')
 
 
@@ -71,11 +77,14 @@ class WaitingDriver(webdriver.Chrome):
         return self._wait_element(By.XPATH, value, wait_timeout)
 
 
-class DownloadLatestChromeDriver(unittest.TestCase):
+class Test01VirtualenvCheck(unittest.TestCase):
     def test(self):
         if 'VIRTUAL_ENV' not in os.environ:
             self.fail('activate virtualenv first')
 
+
+class Test02DownloadLatestChromeDriver(unittest.TestCase):
+    def test(self):
         path_to_bin = os.environ['VIRTUAL_ENV'] + '/bin'
         path_to_driver = path_to_bin + '/chromedriver'
         if os.path.exists(path_to_driver):
@@ -94,28 +103,26 @@ class DownloadLatestChromeDriver(unittest.TestCase):
         self.assertEqual(version_request.status_code, 200)
         latest_version = version_request.text.strip()
 
-        filename = 'chromedriver_linux' + chrome_driver_bits + '.zip'
+        driver_archive_filename = 'chromedriver_linux' + chrome_driver_bits + '.zip'
         driver_url = 'https://chromedriver.storage.googleapis.com/' + \
-                     latest_version + '/' + filename
+                     latest_version + '/' + driver_archive_filename
 
-        if os.path.exists(filename):
-            os.remove(filename)
-        wget.download(driver_url, filename)
+        if os.path.exists(driver_archive_filename):
+            os.remove(driver_archive_filename)
+        wget.download(driver_url, driver_archive_filename)
 
-        zipped_driver = ZipFile(filename)
+        zipped_driver = ZipFile(driver_archive_filename)
         zipped_driver.extractall(path_to_bin)
-        self.assertTrue(os.path.exists(filename))
-        if os.path.exists(filename):
-            os.remove(filename)
+        self.assertTrue(os.path.exists(path_to_driver))
 
         subprocess.call(['chmod', '+x', path_to_driver])
 
 
-class SaferVPNGathering(unittest.TestCase):
+class Test03SaferVPNGathering(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        super(SaferVPNGathering, self).__init__(*args, **kwargs)
+        super(Test03SaferVPNGathering, self).__init__(*args, **kwargs)
 
-        self._generated_email = None
+        self._generated_email = ''
         self._password = 'qwerty123456'
 
     def setUp(self):
@@ -178,6 +185,44 @@ class SaferVPNGathering(unittest.TestCase):
         for driver in [self.driver_dropmailme, self.driver_safervpn]:
             driver.quit()
 
+
+class Test04DownloadConfigurationFiles(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(Test04DownloadConfigurationFiles, self).__init__(*args, **kwargs)
+
+        ca_url = 'https://www.safervpn.com/files/openvpnconfigs/safervpn.com.ca.crt'
+        ca_filename = os.path.basename(ca_url)
+
+        self._files = dict()
+        self._files[ca_filename] = ca_url
+
+        url_prefix = 'https://www.safervpn.com/dlovpn?f=udp%2F'
+        countries = [
+            'Australia',
+            'Brazil',
+            'Germany',
+            'Hong Kong',
+            'Japan',
+            'Poland',
+            'Russia',
+            'Switzerland',
+            'US East',
+            'US West'
+        ]
+        ovpn_config_extension = '.ovpn'
+        for country in countries:
+            ovpn_config_filename = country + ovpn_config_extension
+            ovpn_config_url = url_prefix + urllib.quote(ovpn_config_filename)
+            self._files[ovpn_config_filename] = ovpn_config_url
+
+    def test(self):
+        # todo add skip like in Test02DownloadLatestChromeDriver
+        for filename, url in self._files.iteritems():
+            if os.path.exists(filename):
+                os.remove(filename)
+            # todo save configs to other directory
+            wget.download(url)
+            # todo write countries list to a file
 
 if __name__ == '__main__':
     unittest.main(verbosity=2, failfast=True)
