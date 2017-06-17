@@ -1,6 +1,7 @@
 certifi==2017.4.17
 chardet==3.0.4
 idna==2.5
+pathlib==1.0.1
 pkg-resources==0.0.0
 requests==2.17.3
 selenium==3.4.3

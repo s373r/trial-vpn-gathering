@@ -7,6 +7,7 @@ import platform
 import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 
 import unittest
 import requests
@@ -21,31 +22,13 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
+virtualenv_root_path = None
+config_dir_relative_path = 'etc/safervpn'
 
-class Credentials:
-    def __init__(self, filename):
-        self._filename = filename
-        self._email = ''
-        self._password = ''
 
-    def exists(self):
-        return os.path.exists(self._filename)
-
-    def is_actual_credentials(self):
-        credentials_creation_mtime = os.path.getmtime(self._filename)
-        time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
-        return time_from_the_creation.days == 0
-
-    def write_credentials_to_file(self, email, password):
-        self._email = email
-        self._password = password
-
-        with open(self._filename, 'w') as file:
-            for line in [self._email, self._password]:
-                file.writelines([line, '\n'])
-
-# todo save a credentials.txt file to other directory
-credentials = Credentials('credentials.txt')
+def get_config_dir():
+    global virtualenv_root_path, config_dir_relative_path
+    return virtualenv_root_path / config_dir_relative_path
 
 
 class WaitingDriver(webdriver.Chrome):
@@ -82,12 +65,18 @@ class Test01VirtualenvCheck(unittest.TestCase):
         if 'VIRTUAL_ENV' not in os.environ:
             self.fail('activate virtualenv first')
 
+        global virtualenv_root_path
+        virtualenv_root_path = Path(os.environ['VIRTUAL_ENV'])
+        if not virtualenv_root_path.is_dir():
+            self.fail('the VIRTUAL_ENV variable isn\'t dir')
+
 
 class Test02DownloadLatestChromeDriver(unittest.TestCase):
     def test(self):
-        path_to_bin = os.environ['VIRTUAL_ENV'] + '/bin'
-        path_to_driver = path_to_bin + '/chromedriver'
-        if os.path.exists(path_to_driver):
+        global virtualenv_root_path
+        path_to_bin = virtualenv_root_path / 'bin'
+        path_to_driver = path_to_bin / 'chromedriver'
+        if path_to_driver.exists():
             self.skipTest('driver exists')
 
         self.assertEqual(platform.system(), 'Linux')
@@ -112,10 +101,10 @@ class Test02DownloadLatestChromeDriver(unittest.TestCase):
         wget.download(driver_url, driver_archive_filename)
 
         zipped_driver = ZipFile(driver_archive_filename)
-        zipped_driver.extractall(path_to_bin)
-        self.assertTrue(os.path.exists(path_to_driver))
+        zipped_driver.extractall(str(path_to_bin))
+        self.assertTrue(path_to_driver.exists())
 
-        subprocess.call(['chmod', '+x', path_to_driver])
+        subprocess.call(['chmod', '+x', str(path_to_driver)])
 
 
 class Test03SaferVPNGathering(unittest.TestCase):
@@ -124,9 +113,29 @@ class Test03SaferVPNGathering(unittest.TestCase):
 
         self._generated_email = ''
         self._password = 'qwerty123456'
+        self._credentials = None
+
+    def _is_actual_credentials(self):
+        if not self._credentials.exists():
+            return
+
+        credentials_creation_mtime = os.path.getmtime(str(self._credentials))
+        time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
+        return time_from_the_creation.days == 0
+
+    def _write_credentials_to_file(self):
+        with open(str(self._credentials), 'w') as credentials_file:
+            for line in [self._generated_email, self._password]:
+                credentials_file.writelines([line, '\n'])
 
     def setUp(self):
-        if credentials.exists() and credentials.is_actual_credentials():
+        config_dir = get_config_dir()
+        # todo delete this checking on the Python3 migration, because 'exist_ok' will be provided
+        if not config_dir.exists():
+            config_dir.mkdir(parents=True)
+
+        self._credentials = config_dir / 'credentials.txt'
+        if self._is_actual_credentials():
             self.skipTest('actual trial credentials')
 
         self.driver_dropmailme = WaitingDriver()
@@ -179,7 +188,7 @@ class Test03SaferVPNGathering(unittest.TestCase):
         confirm_message_element = driver_dropmailme.wait_element_by_xpath('/html/body/div[1]/div[2]/strong')
         self.assertEqual(confirm_message_element.text, 'Your free trial account has been successfuly activated')
 
-        credentials.write_credentials_to_file(self._generated_email, self._password)
+        self._write_credentials_to_file()
 
     def tearDown(self):
         for driver in [self.driver_dropmailme, self.driver_safervpn]:
@@ -216,13 +225,18 @@ class Test04DownloadConfigurationFiles(unittest.TestCase):
             self._files[ovpn_config_filename] = ovpn_config_url
 
     def test(self):
+        config_dir = get_config_dir()
+        skip_count = 0
         # todo add skip like in Test02DownloadLatestChromeDriver
         for filename, url in self._files.iteritems():
-            if os.path.exists(filename):
-                os.remove(filename)
-            # todo save configs to other directory
-            wget.download(url)
-            # todo write countries list to a file
+            file_path = config_dir / filename
+            if file_path.exists():
+                skip_count += 1
+                continue
+            wget.download(url, str(file_path))
+
+        if skip_count == len(self._files):
+            self.skipTest('all config files are existed')
 
 if __name__ == '__main__':
     unittest.main(verbosity=2, failfast=True)
