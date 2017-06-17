@@ -2,6 +2,7 @@
 
 Automatically getting a trial VPN account
 
+
 ## :lock: Prepare
 
 ```
