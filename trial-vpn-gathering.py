@@ -199,11 +199,7 @@ class Test04DownloadConfigurationFiles(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(Test04DownloadConfigurationFiles, self).__init__(*args, **kwargs)
 
-        ca_url = 'https://www.safervpn.com/files/openvpnconfigs/safervpn.com.ca.crt'
-        ca_filename = os.path.basename(ca_url)
-
         self._files = dict()
-        self._files[ca_filename] = ca_url
 
         url_prefix = 'https://www.safervpn.com/dlovpn?f=udp%2F'
         countries = [
