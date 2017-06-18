@@ -1,6 +1,6 @@
 # trial-vpn-gathering
 
-Automatically getting a trial VPN account
+Automatically getting a trial VPN account and install it into NetworkManager
 
 
 ## :lock: Prepare
