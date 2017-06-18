@@ -19,18 +19,17 @@ $ pip install -r requirements.txt
 $ python trial-vpn-gathering.py
 ```
 
-If all test are passed, `credentials.txt` will be created :crystal_ball:
-
-Type to view fresh credentials:
-```
-$ cat credentials.txt
-```
-
 ## :closed_lock_with_key: Setup
 
 After gathering credentials you can use a VPN account for a day :clock2:
 
-[How can I complete a manual OpenVPN setup for Linux (Ubuntu)?](https://www.safervpn.com/support/articles/214083725-How-can-I-complete-a-manual-OpenVPN-setup-for-Linux-Ubuntu-)
+To install VPN-connections into NetworkManager:
+
+```
+$ sudo bash vpn-connections-install.sh
+```
+
+Now you can run a VPN-session via the VPN tray icon :crystal_ball:
 
 ---
 
