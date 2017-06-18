@@ -6,13 +6,15 @@ import os
 import platform
 import subprocess
 import time
+import sys
+import uuid
 from datetime import datetime
+from string import Template
 from pathlib import Path
 
 import unittest
 import requests
 import wget
-import urllib
 from zipfile import ZipFile
 
 from selenium import webdriver
@@ -22,13 +24,30 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
-virtualenv_root_path = None
-config_dir_relative_path = 'etc/safervpn'
+
+class Global:
+    def __init__(self):
+        self._virtualenv_root_path = None
+        self._generated_email = None
+        self._password = 'qwerty123456'
+
+    @property
+    def generated_email(self):
+        return self._generated_email
+
+    @property
+    def virtualenv_root_dir(self):
+        return self._virtualenv_root_path
+
+    @property
+    def password(self):
+        return self._password
+
+    def get_config_dir(self):
+        return self.virtualenv_root_path / 'etc' / 'safervpn'
 
 
-def get_config_dir():
-    global virtualenv_root_path, config_dir_relative_path
-    return virtualenv_root_path / config_dir_relative_path
+g = Global()
 
 
 class WaitingDriver(webdriver.Chrome):
@@ -65,16 +84,15 @@ class Test01VirtualenvCheck(unittest.TestCase):
         if 'VIRTUAL_ENV' not in os.environ:
             self.fail('activate virtualenv first')
 
-        global virtualenv_root_path
         virtualenv_root_path = Path(os.environ['VIRTUAL_ENV'])
         if not virtualenv_root_path.is_dir():
             self.fail('the VIRTUAL_ENV variable isn\'t dir')
+        g.virtualenv_root_path = virtualenv_root_path
 
 
 class Test02DownloadLatestChromeDriver(unittest.TestCase):
     def test(self):
-        global virtualenv_root_path
-        path_to_bin = virtualenv_root_path / 'bin'
+        path_to_bin = g.virtualenv_root_path / 'bin'
         path_to_driver = path_to_bin / 'chromedriver'
         if path_to_driver.exists():
             self.skipTest('driver exists')
@@ -111,8 +129,6 @@ class Test03SaferVPNGathering(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(Test03SaferVPNGathering, self).__init__(*args, **kwargs)
 
-        self._generated_email = ''
-        self._password = 'qwerty123456'
         self._credentials = None
 
     def _is_actual_credentials(self):
@@ -123,19 +139,18 @@ class Test03SaferVPNGathering(unittest.TestCase):
         time_from_the_creation = datetime.now() - datetime.fromtimestamp(credentials_creation_mtime)
         return time_from_the_creation.days == 0
 
-    def _write_credentials_to_file(self):
-        with open(str(self._credentials), 'w') as credentials_file:
-            for line in [self._generated_email, self._password]:
-                credentials_file.writelines([line, '\n'])
-
     def setUp(self):
-        config_dir = get_config_dir()
+        config_dir = g.get_config_dir()
         # todo delete this checking on the Python3 migration, because 'exist_ok' will be provided
         if not config_dir.exists():
             config_dir.mkdir(parents=True)
 
         self._credentials = config_dir / 'credentials.txt'
         if self._is_actual_credentials():
+            with open(str(self._credentials), 'r') as credentials_file:
+                credentials = credentials_file.readlines()
+                g.generated_email = credentials[0]
+                g.password = credentials[1]
             self.skipTest('actual trial credentials')
 
         self.driver_dropmailme = WaitingDriver()
@@ -158,13 +173,13 @@ class Test03SaferVPNGathering(unittest.TestCase):
         time.sleep(1)
 
         generated_email_element = driver_dropmailme.wait_element_by_class('email', 30)
-        self._generated_email = generated_email_element.text
+        g.generated_email = generated_email_element.text
 
         email_input_element = driver_safervpn.wait_element_by_id('email')
-        email_input_element.send_keys(self._generated_email)
+        email_input_element.send_keys(g.generated_email)
 
         password_input_element = driver_safervpn.wait_element_by_id('password')
-        password_input_element.send_keys(self._password)
+        password_input_element.send_keys(g.password)
         try:
             password_input_element.send_keys(Keys.RETURN)
         except TimeoutException:
@@ -188,51 +203,74 @@ class Test03SaferVPNGathering(unittest.TestCase):
         confirm_message_element = driver_dropmailme.wait_element_by_xpath('/html/body/div[1]/div[2]/strong')
         self.assertEqual(confirm_message_element.text, 'Your free trial account has been successfuly activated')
 
-        self._write_credentials_to_file()
+        with open(str(self._credentials), 'w') as credentials_file:
+            for line in [g.generated_email, g.password]:
+                credentials_file.writelines([line, '\n'])
 
     def tearDown(self):
         for driver in [self.driver_dropmailme, self.driver_safervpn]:
             driver.quit()
 
 
-class Test04DownloadConfigurationFiles(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        super(Test04DownloadConfigurationFiles, self).__init__(*args, **kwargs)
+class Test04DownloadCA(unittest.TestCase):
+    def test(self):
+        file_name = 'safervpn.com.ca.crt'
+        ca_file_dir = g.virtualenv_root_path / 'etc' / 'openvpn'
+        # todo delete this checking on the Python3 migration, because 'exist_ok' will be provided
+        if not ca_file_dir.exists():
+            ca_file_dir.mkdir(parents=True)
 
-        self._files = dict()
+        ca_file_path = ca_file_dir / file_name
+        # todo add skip like in Test02DownloadLatestChromeDriver
+        if ca_file_path.exists():
+            self.skipTest('{} is existed'.format(file_name))
 
-        url_prefix = 'https://www.safervpn.com/dlovpn?f=udp%2F'
-        countries = [
-            'Australia',
-            'Brazil',
-            'Germany',
-            'Hong Kong',
-            'Japan',
-            'Poland',
-            'Russia',
-            'Switzerland',
-            'US East',
-            'US West'
-        ]
-        ovpn_config_extension = '.ovpn'
-        for country in countries:
-            ovpn_config_filename = country + ovpn_config_extension
-            ovpn_config_url = url_prefix + urllib.quote(ovpn_config_filename)
-            self._files[ovpn_config_filename] = ovpn_config_url
+        ca_url = 'https://www.safervpn.com/files/openvpnconfigs/safervpn.com.ca.crt'
+
+        wget.download(ca_url, str(ca_file_path))
+
+
+class Test05CreateConnectionFiles(unittest.TestCase):
+    def setUp(self):
+        # todo add real gathering from https://www.safervpn.com/support/articles/213994925-SaferVPN-server-list
+        self.countries = {
+            'Australia':   'au1.safervpn.com:1194',
+            'Brazil':      'br1.safervpn.com:1194',
+            'Germany':     'de1.safervpn.com:1194',
+            'Hong Kong':   'hk1.safervpn.com:1194',
+            'Japan':       'jp1.safervpn.com:1194',
+            'Poland':      'pl1.safervpn.com:1194',
+            'Russia':      'ru1.safervpn.com:1194',
+            'Switzerland': 'ch1.safervpn.com:1194',
+            'US East':     'us1.safervpn.com:1194',
+            'US West':     'us2.safervpn.com:1194'
+        }
 
     def test(self):
-        config_dir = get_config_dir()
-        skip_count = 0
-        # todo add skip like in Test02DownloadLatestChromeDriver
-        for filename, url in self._files.iteritems():
-            file_path = config_dir / filename
-            if file_path.exists():
-                skip_count += 1
-                continue
-            wget.download(url, str(file_path))
+        connections_dir = g.virtualenv_root_path / 'etc' / 'NetworkManager' / 'system-connections'
+        # todo delete this checking on the Python3 migration, because 'exist_ok' will be provided
+        if not connections_dir.exists():
+            connections_dir.mkdir(parents=True)
 
-        if skip_count == len(self._files):
-            self.skipTest('all config files are existed')
+        current_file = Path(sys.argv[0])
+        template_file_path = current_file.parent / 'data' / 'connection-template.txt'
+
+        with open(str(template_file_path), 'r') as template_file:
+            connection_template = Template(template_file.read())
+            template_params = {
+                'username': g.generated_email.strip(),
+                'password': g.password.strip(),
+            }
+
+            for country_name, remote in self.countries.iteritems():
+                country_connection_file_path = connections_dir / 'trial-{}'.format(country_name)
+
+                template_params['id'] = country_name
+                template_params['connection_uuid'] = str(uuid.uuid4())
+                template_params['remote'] = remote
+
+                with open(str(country_connection_file_path), 'w') as country_connection_file:
+                    country_connection_file.write(connection_template.safe_substitute(template_params))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2, failfast=True)
