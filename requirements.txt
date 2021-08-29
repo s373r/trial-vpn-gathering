@@ -3,7 +3,7 @@ chardet==3.0.4
 idna==2.5
 pathlib==1.0.1
 pkg-resources==0.0.0
-requests==2.17.3
+requests==2.20.0
 selenium==3.4.3
 urllib3==1.26.5
 wget==3.2
